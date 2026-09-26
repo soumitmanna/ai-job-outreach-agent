@@ -17,3 +17,4 @@ Thumbs.db
 
 # Testing
 .pytest_cache/
+job_agent.db

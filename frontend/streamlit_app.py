@@ -192,3 +192,123 @@ if st.button(
                 "Could not connect to the FastAPI backend. "
                 "Make sure the FastAPI server is running."
             )
+
+# --------------------------------------------------
+# Job Search UI
+# --------------------------------------------------
+
+st.divider()
+
+st.header("🔎 Find Jobs")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    search_query = st.text_input("Search Query (e.g. AI Engineer Intern)", key="job_query")
+    search_location = st.text_input("Location (e.g. Remote, India)", key="job_location")
+
+with col2:
+    search_skills = st.text_input("Skills (comma separated)", key="job_skills")
+    search_experience = st.selectbox("Experience Level", ["Student", "Intern", "Entry Level", "Mid Level", "Senior"], key="job_exp")
+
+search_limit = st.slider("Number of Jobs", min_value=1, max_value=50, value=20)
+
+if st.button("🔍 Search Jobs", type="primary"):
+    if not search_query:
+        st.warning("Please provide a search query.")
+    else:
+        search_data = {
+            "query": search_query,
+            "location": search_location if search_location else None,
+            "skills": [s.strip() for s in search_skills.split(",")] if search_skills else [],
+            "experience_level": search_experience,
+            "limit": search_limit
+        }
+        
+        with st.spinner("Searching for jobs..."):
+            try:
+                response = requests.post("http://127.0.0.1:8000/jobs/search", json=search_data)
+                if response.status_code == 200:
+                    data = response.json()
+                    jobs = data.get("jobs", [])
+                    st.success(f"Found {len(jobs)} jobs!")
+                    
+                    if data.get("errors"):
+                        for err in data["errors"]:
+                            st.warning(err)
+                            
+                    for job in jobs:
+                        score = job.get('match_score', 0)
+                        with st.expander(f"{job['title']} @ {job['company']} (Score: {score})"):
+                            st.write(f"**Location:** {job.get('location', 'N/A')}")
+                            st.write(f"**Match Score:** {score}/100")
+                            
+                            match_skills = job.get('matching_skills', [])
+                            if match_skills:
+                                st.write(f"**✅ Matching Skills:** {', '.join(match_skills)}")
+                                
+                            miss_skills = job.get('missing_skills', [])
+                            if miss_skills:
+                                st.write(f"**❌ Missing Skills:** {', '.join(miss_skills)}")
+                                
+                            reasons = job.get('match_reasons', [])
+                            if reasons:
+                                st.write(f"**💡 Match Reasons:** {', '.join(reasons)}")
+                                
+                            st.write(f"**Source:** {job['source']}")
+                            if job.get('description'):
+                                st.write(f"**Description Snippet:** {job['description'][:300]}...")
+                            st.markdown(f"[View Job]({job['job_url']})")
+                else:
+                    st.error(f"Error searching jobs: {response.text}")
+            except requests.exceptions.ConnectionError:
+                st.error("Could not connect to FastAPI backend.")
+
+
+# --------------------------------------------------
+# Candidate-Based Job Search
+# --------------------------------------------------
+
+st.divider()
+
+st.header("🎯 Find Jobs for My Profile")
+
+match_candidate_id = st.number_input("Enter Candidate ID", min_value=1, step=1, value=1)
+
+if st.button("Find Matching Jobs"):
+    with st.spinner("Matching jobs for candidate..."):
+        try:
+            response = requests.get(f"http://127.0.0.1:8000/candidates/{match_candidate_id}/jobs")
+            if response.status_code == 200:
+                data = response.json()
+                jobs = data.get("jobs", [])
+                st.success(f"Found {len(jobs)} matched jobs!")
+                
+                for job in jobs:
+                    score = job.get('match_score', 0)
+                    with st.expander(f"{job['title']} @ {job['company']} (Score: {score})"):
+                        st.write(f"**Location:** {job.get('location', 'N/A')}")
+                        st.write(f"**Match Score:** {score}/100")
+                        
+                        match_skills = job.get('matching_skills', [])
+                        if match_skills:
+                            st.write(f"**✅ Matching Skills:** {', '.join(match_skills)}")
+                            
+                        miss_skills = job.get('missing_skills', [])
+                        if miss_skills:
+                            st.write(f"**❌ Missing Skills:** {', '.join(miss_skills)}")
+                            
+                        reasons = job.get('match_reasons', [])
+                        if reasons:
+                            st.write(f"**💡 Match Reasons:** {', '.join(reasons)}")
+                            
+                        st.write(f"**Source:** {job['source']}")
+                        if job.get('description'):
+                            st.write(f"**Description Snippet:** {job['description'][:300]}...")
+                        st.markdown(f"[View Job]({job['job_url']})")
+            elif response.status_code == 404:
+                st.error("Candidate not found.")
+            else:
+                st.error(f"Error matching jobs: {response.text}")
+        except requests.exceptions.ConnectionError:
+            st.error("Could not connect to FastAPI backend.")
